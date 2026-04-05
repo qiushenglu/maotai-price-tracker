@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>飞天茅台批发价追踪 - 实时行情走势</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+        .gradient-bg {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+        }
+        .price-up { color: #ef4444; }
+        .price-down { color: #22c55e; }
+        .card-glow {
+            box-shadow: 0 0 30px rgba(234, 179, 8, 0.1);
+        }
+        .gold-gradient {
+            background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 50%, #d97706 100%);
+        }
+        @keyframes pulse-gold {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(251, 191, 36, 0.4); }
+            50% { box-shadow: 0 0 0 10px rgba(251, 191, 36, 0); }
+        }
+        .pulse-gold { animation: pulse-gold 2s ease-in-out infinite; }
+        @keyframes alert-pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.8; transform: scale(1.02); }
+        }
+        .alert-active { animation: alert-pulse 1.5s ease-in-out infinite; }
+    </style>
+</head>
+<body class="gradient-bg min-h-screen text-white">
+    <!-- Header -->
+    <header class="border-b border-yellow-900/30 backdrop-blur-sm sticky top-0 z-50 bg-slate-900/90">
+        <div class="max-w-7xl mx-auto px-4 py-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <div class="w-12 h-12 rounded-xl gold-gradient flex items-center justify-center text-2xl shadow-lg pulse-gold">
+                        🍶
+                    </div>
+                    <div>
+                        <h1 class="text-xl font-bold text-yellow-400">飞天茅台批发价追踪</h1>
+                        <p class="text-xs text-slate-400">实时监控 · 智能预警</p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-4">
+                    <div class="text-right">
+                        <div class="text-xs text-slate-400">最后更新</div>
+                        <div id="lastUpdate" class="text-sm text-yellow-400 font-medium"></div>
+                    </div>
+                    <button onclick="refreshData()" class="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 rounded-lg text-sm font-medium transition-all flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                        </svg>
+                        刷新
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-4 py-6">
+        <!-- Alert Banner -->
+        <div id="alertBanner" class="hidden mb-6 rounded-2xl p-4 border alert-active">
+            <div class="flex items-center gap-3">
+                <span class="text-2xl" id="alertIcon">⚠️</span>
+                <div>
+                    <div id="alertTitle" class="font-semibold"></div>
+                    <div id="alertMessage" class="text-sm opacity-90"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Current Price Card -->
+        <div class="bg-gradient-to-r from-yellow-900/30 to-amber-900/20 rounded-2xl border border-yellow-700/30 p-6 mb-6 card-glow">
+            <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+                <div>
+                    <div class="text-slate-400 text-sm mb-1">今日飞天茅台 53° 500ml 批发价</div>
+                    <div class="flex items-baseline gap-3">
+                        <span id="currentPrice" class="text-5xl font-bold text-yellow-400">--</span>
+                        <span class="text-slate-400 text-lg">元/瓶</span>
+                    </div>
+                    <div id="priceChange" class="flex items-center gap-2 mt-2"></div>
+                </div>
+                <div class="grid grid-cols-3 gap-6 text-center">
+                    <div class="bg-slate-800/50 rounded-xl p-4">
+                        <div class="text-slate-400 text-xs mb-1">今日最高</div>
+                        <div id="todayHigh" class="text-xl font-bold text-red-400">--</div>
+                    </div>
+                    <div class="bg-slate-800/50 rounded-xl p-4">
+                        <div class="text-slate-400 text-xs mb-1">今日最低</div>
+                        <div id="todayLow" class="text-xl font-bold text-green-400">--</div>
+                    </div>
+                    <div class="bg-slate-800/50 rounded-xl p-4">
+                        <div class="text-slate-400 text-xs mb-1">成交量</div>
+                        <div id="volume" class="text-xl font-bold text-blue-400">--</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Threshold Settings -->
+        <div class="bg-slate-800/30 rounded-2xl border border-slate-700/50 p-6 mb-6">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-semibold flex items-center gap-2">
+                    <span>🔔</span> 价格预警设置
+                </h2>
+                <button onclick="toggleThresholdEdit()" class="text-sm text-yellow-400 hover:text-yellow-300">
+                    编辑阈值
+                </button>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="bg-slate-700/30 rounded-xl p-4">
+                    <div class="text-slate-400 text-sm mb-1">上限预警</div>
+                    <div class="flex items-baseline gap-1">
+                        <span id="upperLimit" class="text-2xl font-bold text-red-400">2450</span>
+                        <span class="text-slate-400 text-sm">元</span>
+                    </div>
+                    <div class="text-xs text-slate-500 mt-1">价格高于此值触发预警</div>
+                </div>
+                <div class="bg-slate-700/30 rounded-xl p-4">
+                    <div class="text-slate-400 text-sm mb-1">下限预警</div>
+                    <div class="flex items-baseline gap-1">
+                        <span id="lowerLimit" class="text-2xl font-bold text-green-400">2250</span>
+                        <span class="text-slate-400 text-sm">元</span>
+                    </div>
+                    <div class="text-xs text-slate-500 mt-1">价格低于此值触发预警</div>
+                </div>
+                <div class="bg-slate-700/30 rounded-xl p-4">
+                    <div class="text-slate-400 text-sm mb-1">波动预警</div>
+                    <div class="flex items-baseline gap-1">
+                        <span id="volatilityAlert" class="text-2xl font-bold text-purple-400">3.0</span>
+                        <span class="text-slate-400 text-sm">%</span>
+                    </div>
+                    <div class="text-xs text-slate-500 mt-1">单日涨跌超此幅度触发预警</div>
+                </div>
+            </div>
+            
+            <!-- Hidden Edit Form -->
+            <div id="thresholdEditForm" class="hidden mt-4 pt-4 border-t border-slate-700/50">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <label class="text-sm text-slate-400">上限价格</label>
+                        <input type="number" id="editUpperLimit" class="w-full mt-1 px-3 py-2 bg-slate-700 rounded-lg text-white" value="2450">
+                    </div>
+                    <div>
+                        <label class="text-sm text-slate-400">下限价格</label>
+                        <input type="number" id="editLowerLimit" class="w-full mt-1 px-3 py-2 bg-slate-700 rounded-lg text-white" value="2250">
+                    </div>
+                    <div>
+                        <label class="text-sm text-slate-400">波动幅度 %</label>
+                        <input type="number" id="editVolatilityAlert" step="0.1" class="w-full mt-1 px-3 py-2 bg-slate-700 rounded-lg text-white" value="3.0">
+                    </div>
+                </div>
+                <button onclick="saveThresholds()" class="mt-4 px-4 py-2 bg-yellow-600 hover:bg-yellow-700 rounded-lg text-sm font-medium">
+                    保存设置
+                </button>
+            </div>
+        </div>
+
+        <!-- Time Range Tabs -->
+        <div class="flex gap-2 mb-6 overflow-x-auto pb-2">
+            <button onclick="switchRange('day')" id="tab-day" class="tab-btn px-5 py-2 rounded-full text-sm font-medium bg-yellow-600 text-white whitespace-nowrap">
+                📅 日走势
+            </button>
+            <button onclick="switchRange('week')" id="tab-week" class="tab-btn px-5 py-2 rounded-full text-sm font-medium bg-slate-700 text-slate-300 hover:bg-slate-600 whitespace-nowrap">
+                📊 周走势
+            </button>
+            <button onclick="switchRange('month')" id="tab-month" class="tab-btn px-5 py-2 rounded-full text-sm font-medium bg-slate-700 text-slate-300 hover:bg-slate-600 whitespace-nowrap">
+                📈 月走势
+            </button>
+            <button onclick="switchRange('quarter')" id="tab-quarter" class="tab-btn px-5 py-2 rounded-full text-sm font-medium bg-slate-700 text-slate-300 hover:bg-slate-600 whitespace-nowrap">
+                📉 季度走势
+            </button>
+        </div>
+
+        <!-- Chart -->
+        <div class="bg-slate-800/30 rounded-2xl border border-slate-700/50 p-6 mb-6">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-semibold">价格走势图</h2>
+                <div class="flex items-center gap-4 text-sm">
+                    <span class="flex items-center gap-2">
+                        <span class="w-3 h-3 rounded-full bg-yellow-500"></span>
+                        批发价
+                    </span>
+                    <span class="flex items-center gap-2">
+                        <span class="w-3 h-3 rounded-full bg-red-500"></span>
+                        上限
+                    </span>
+                    <span class="flex items-center gap-2">
+                        <span class="w-3 h-3 rounded-full bg-green-500"></span>
+                        下限
+                    </span>
+                </div>
+            </div>
+            <div class="relative h-80">
+                <canvas id="priceChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Stats Grid -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            <div class="bg-slate-800/30 rounded-xl p-5 border border-slate-700/50">
+                <div class="text-slate-400 text-sm mb-1">区间最高价</div>
+                <div id="rangeHigh" class="text-2xl font-bold text-red-400">--</div>
+                <div id="rangeHighDate" class="text-xs text-slate-500 mt-1">--</div>
+            </div>
+            <div class="bg-slate-800/30 rounded-xl p-5 border border-slate-700/50">
+                <div class="text-slate-400 text-sm mb-1">区间最低价</div>
+                <div id="rangeLow" class="text-2xl font-bold text-green-400">--</div>
+                <div id="rangeLowDate" class="text-xs text-slate-500 mt-1">--</div>
+            </div>
+            <div class="bg-slate-800/30 rounded-xl p-5 border border-slate-700/50">
+                <div class="text-slate-400 text-sm mb-1">区间均价</div>
+                <div id="rangeAvg" class="text-2xl font-bold text-yellow-400">--</div>
+                <div class="text-xs text-slate-500 mt-1">元/瓶</div>
+            </div>
+            <div class="bg-slate-800/30 rounded-xl p-5 border border-slate-700/50">
+                <div class="text-slate-400 text-sm mb-1">价格波动</div>
+                <div id="rangeVolatility" class="text-2xl font-bold text-purple-400">--</div>
+                <div class="text-xs text-slate-500 mt-1">振幅</div>
+            </div>
+        </div>
+
+        <!-- Price History Table -->
+        <div class="bg-slate-800/30 rounded-2xl border border-slate-700/50 overflow-hidden">
+            <div class="p-4 border-b border-slate-700/50 flex items-center justify-between">
+                <h2 class="text-lg font-semibold">历史价格明细</h2>
+                <div id="alertCount" class="text-sm text-slate-400"></div>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full">
+                    <thead>
+                        <tr class="border-b border-slate-700/50 bg-slate-800/50">
+                            <th class="px-6 py-3 text-left text-xs font-semibold text-slate-400 uppercase">日期</th>
+                            <th class="px-6 py-3 text-center text-xs font-semibold text-slate-400 uppercase">批发价</th>
+                            <th class="px-6 py-3 text-center text-xs font-semibold text-slate-400 uppercase">涨跌</th>
+                            <th class="px-6 py-3 text-center text-xs font-semibold text-slate-400 uppercase">涨跌幅</th>
+                            <th class="px-6 py-3 text-center text-xs font-semibold text-slate-400 uppercase">成交量</th>
+                            <th class="px-6 py-3 text-center text-xs font-semibold text-slate-400 uppercase">状态</th>
+                        </tr>
+                    </thead>
+                    <tbody id="priceTable"></tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="border-t border-slate-700/50 mt-12 py-6">
+        <div class="max-w-7xl mx-auto px-4 text-center text-slate-500 text-sm">
+            <p>© 2026 飞天茅台批发价追踪 | 数据仅供参考，不构成投资建议</p>
+        </div>
+    </footer>
+
+    <script>
+        // 阈值设置
+        let thresholds = {
+            upperLimit: 2450,
+            lowerLimit: 2250,
+            volatilityAlert: 3.0
+        };
+
+        // 生成价格数据
+        const generatePriceData = (days) => {
+            const data = [];
+            let basePrice = 2350;
+            const today = new Date();
+            
+            for (let i = days - 1; i >= 0; i--) {
+                const date = new Date(today);
+                date.setDate(date.getDate() - i);
+                
+                const trend = Math.sin(i / 10) * 30;
+                const noise = (Math.random() - 0.5) * 40;
+                const holidayEffect = (date.getMonth() === 0 || date.getMonth() === 11) ? 50 : 0;
+                
+                const price = Math.round(basePrice + trend + noise + holidayEffect);
+                const volume = Math.round(500 + Math.random() * 300);
+                
+                data.push({
+                    date: date.toISOString().split('T')[0],
+                    price: price,
+                    volume: volume,
+                    high: price + Math.round(Math.random() * 20),
+                    low: price - Math.round(Math.random() * 20)
+                });
+            }
+            return data;
+        };
+
+        const allData = {
+            day: generatePriceData(7),
+            week: generatePriceData(30),
+            month: generatePriceData(90),
+            quarter: generatePriceData(180)
+        };
+
+        let currentRange = 'day';
+        let chart = null;
+
+        const formatDate = (dateStr) => {
+            const date = new Date(dateStr);
+            return `${date.getMonth() + 1}/${date.getDate()}`;
+        };
+
+        const formatFullDate = (dateStr) => {
+            const date = new Date(dateStr);
+            return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`;
+        };
+
+        // 检查预警
+        const checkAlerts = (latest, previous) => {
+            const alerts = [];
+            
+            if (latest.price >= thresholds.upperLimit) {
+                alerts.push({
+                    type: 'upper',
+                    icon: '🔴',
+                    title: '价格突破上限预警',
+                    message: `当前价格 ¥${latest.price} 已超过上限阈值 ¥${thresholds.upperLimit}`,
+                    color: 'bg-red-900/50 border-red-500'
+                });
+            }
+            
+            if (latest.price <= thresholds.lowerLimit) {
+                alerts.push({
+                    type: 'lower',
+                    icon: '🟢',
+                    title: '价格跌破下限预警',
+                    message: `当前价格 ¥${latest.price} 已低于下限阈值 ¥${thresholds.lowerLimit}`,
+                    color: 'bg-green-900/50 border-green-500'
+                });
+            }
+            
+            if (previous) {
+                const changePercent = ((latest.price - previous.price) / previous.price * 100);
+                if (Math.abs(changePercent) >= thresholds.volatilityAlert) {
+                    const direction = changePercent > 0 ? '上涨' : '下跌';
+                    alerts.push({
+                        type: 'volatility',
+                        icon: '⚠️',
+                        title: '价格剧烈波动预警',
+                        message: `单日${direction} ${Math.abs(changePercent).toFixed(2)}%，超过预警阈值 ${thresholds.volatilityAlert}%`,
+                        color: 'bg-purple-900/50 border-purple-500'
+                    });
+                }
+            }
+            
+            return alerts;
+        };
+
+        // 显示预警
+        const showAlerts = (alerts) => {
+            const banner = document.getElementById('alertBanner');
+            
+            if (alerts.length === 0) {
+                banner.classList.add('hidden');
+                document.getElementById('alertCount').textContent = '';
+                return;
+            }
+            
+            const alert = alerts[0];
+            banner.className = `mb-6 rounded-2xl p-4 border alert-active ${alert.color}`;
+            document.getElementById('alertIcon').textContent = alert.icon;
+            document.getElementById('alertTitle').textContent = alert.title;
+            document.getElementById('alertMessage').textContent = alert.message;
+            banner.classList.remove('hidden');
+            
+            document.getElementById('alertCount').innerHTML = `<span class="text-yellow-400">${alerts.length} 条预警</span>`;
+        };
+
+        // 更新阈值显示
+        const updateThresholdDisplay = () => {
+            document.getElementById('upperLimit').textContent = thresholds.upperLimit;
+            document.getElementById('lowerLimit').textContent = thresholds.lowerLimit;
+            document.getElementById('volatilityAlert').textContent = thresholds.volatilityAlert;
+        };
+
+        // 切换阈值编辑
+        const toggleThresholdEdit = () => {
+            const form = document.getElementById('thresholdEditForm');
+            form.classList.toggle('hidden');
+            
+            if (!form.classList.contains('hidden')) {
+                document.getElementById('editUpperLimit').value = thresholds.upperLimit;
+                document.getElementById('editLowerLimit').value = thresholds.lowerLimit;
+                document.getElementById('editVolatilityAlert').value = thresholds.volatilityAlert;
+            }
+        };
+
+        // 保存阈值
+        const saveThresholds = () => {
+            thresholds.upperLimit = parseInt(document.getElementById('editUpperLimit').value);
+            thresholds.lowerLimit = parseInt(document.getElementById('editLowerLimit').value);
+            thresholds.volatilityAlert = parseFloat(document.getElementById('editVolatilityAlert').value);
+            
+            updateThresholdDisplay();
+            toggleThresholdEdit();
+            
+            // 重新检查预警
+            const data = allData.day;
+            const latest = data[data.length - 1];
+            const previous = data[data.length - 2];
+            const alerts = checkAlerts(latest, previous);
+            showAlerts(alerts);
+            
+            // 更新图表
+            drawChart(allData[currentRange]);
+        };
+
+        // 更新当前价格
+        const updateCurrentPrice = () => {
+            const data = allData.day;
+            const latest = data[data.length - 1];
+            const previous = data[data.length - 2];
+            
+            document.getElementById('currentPrice').textContent = latest.price;
+            document.getElementById('lastUpdate').textContent = new Date().toLocaleString('zh-CN');
+            
+            const change = latest.price - previous.price;
+            const changePercent = ((change / previous.price) * 100).toFixed(2);
+            
+            const changeEl = document.getElementById('priceChange');
+            const changeClass = change >= 0 ? 'price-up' : 'price-down';
+            const arrow = change >= 0 ? '↑' : '↓';
+            
+            changeEl.innerHTML = `
+                <span class="${changeClass} font-semibold">${arrow} ${Math.abs(change)}元</span>
+                <span class="${changeClass}">(${change >= 0 ? '+' : ''}${changePercent}%)</span>
+                <span class="text-slate-500 text-sm">较昨日</span>
+            `;
+            
+            document.getElementById('todayHigh').textContent = latest.high + '元';
+            document.getElementById('todayLow').textContent = latest.low + '元';
+            document.getElementById('volume').textContent = latest.volume + '件';
+            
+            // 检查预警
+            const alerts = checkAlerts(latest, previous);
+            showAlerts(alerts);
+        };
+
+        // 更新统计
+        const updateStats = (data) => {
+            const prices = data.map(d => d.price);
+            const high = Math.max(...prices);
+            const low = Math.min(...prices);
+            const avg = (prices.reduce((a, b) => a + b, 0) / prices.length).toFixed(0);
+            const volatility = (((high - low) / low) * 100).toFixed(2);
+            
+            const highItem = data.find(d => d.price === high);
+            const lowItem = data.find(d => d.price === low);
+            
+            document.getElementById('rangeHigh').textContent = high + '元';
+            document.getElementById('rangeHighDate').textContent = formatFullDate(highItem.date);
+            document.getElementById('rangeLow').textContent = low + '元';
+            document.getElementById('rangeLowDate').textContent = formatFullDate(lowItem.date);
+            document.getElementById('rangeAvg').textContent = avg + '元';
+            document.getElementById('rangeVolatility').textContent = volatility + '%';
+        };
+
+        // 更新表格
+        const updateTable = (data) => {
+            const tbody = document.getElementById('priceTable');
+            const reversedData = [...data].reverse();
+            
+            tbody.innerHTML = reversedData.map((item, index) => {
+                const prevItem = reversedData[index + 1];
+                const change = prevItem ? item.price - prevItem.price : 0;
+                const changePercent = prevItem ? ((change / prevItem.price) * 100).toFixed(2) : 0;
+                const changeClass = change >= 0 ? 'text-red-400' : 'text-green-400';
+                const arrow = change >= 0 ? '↑' : '↓';
+                
+                // 检查当日是否有预警
+                let status = '<span class="text-slate-500">正常</span>';
+                if (item.price >= thresholds.upperLimit) {
+                    status = '<span class="text-red-400">🔴 超上限</span>';
+                } else if (item.price <= thresholds.lowerLimit) {
+                    status = '<span class="text-green-400">🟢 破下限</span>';
+                } else if (prevItem && Math.abs(changePercent) >= thresholds.volatilityAlert) {
+                    status = '<span class="text-purple-400">⚠️ 剧烈波动</span>';
+                }
+                
+                return `
+                    <tr class="border-b border-slate-700/30 hover:bg-slate-700/20 transition-colors">
+                        <td class="px-6 py-3 text-slate-300">${formatFullDate(item.date)}</td>
+                        <td class="px-6 py-3 text-center font-semibold text-yellow-400">${item.price}元</td>
+                        <td class="px-6 py-3 text-center ${changeClass}">
+                            ${prevItem ? `${arrow} ${Math.abs(change)}元` : '-'}
+                        </td>
+                        <td class="px-6 py-3 text-center ${changeClass}">
+                            ${prevItem ? `${change >= 0 ? '+' : ''}${changePercent}%` : '-'}
+                        </td>
+                        <td class="px-6 py-3 text-center text-slate-400">${item.volume}件</td>
+                        <td class="px-6 py-3 text-center text-sm">${status}</td>
+                    </tr>
+                `;
+            }).join('');
+        };
+
+        // 绘制图表
+        const drawChart = (data) => {
+            const ctx = document.getElementById('priceChart').getContext('2d');
+            
+            if (chart) {
+                chart.destroy();
+            }
+            
+            chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.map(d => formatDate(d.date)),
+                    datasets: [
+                        {
+                            label: '批发价',
+                            data: data.map(d => d.price),
+                            borderColor: '#eab308',
+                            backgroundColor: 'rgba(234, 179, 8, 0.1)',
+                            fill: true,
+                            tension: 0.4,
+                            pointRadius: 4,
+                            pointBackgroundColor: '#eab308'
+                        },
+                        {
+                            label: '上限',
+                            data: data.map(() => thresholds.upperLimit),
+                            borderColor: '#ef4444',
+                            borderDash: [5, 5],
+                            fill: false,
+                            pointRadius: 0
+                        },
+                        {
+                            label: '下限',
+                            data: data.map(() => thresholds.lowerLimit),
+                            borderColor: '#22c55e',
+                            borderDash: [5, 5],
+                            fill: false,
+                            pointRadius: 0
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                            titleColor: '#eab308',
+                            bodyColor: '#fff',
+                            callbacks: {
+                                label: (context) => context.dataset.label + ': ' + context.raw + '元'
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: { color: 'rgba(148, 163, 184, 0.1)' },
+                            ticks: { color: '#94a3b8' }
+                        },
+                        y: {
+                            grid: { color: 'rgba(148, 163, 184, 0.1)' },
+                            ticks: {
+                                color: '#94a3b8',
+                                callback: (value) => value + '元'
+                            }
+                        }
+                    }
+                }
+            });
+        };
+
+        // 切换时间范围
+        const switchRange = (range) => {
+            currentRange = range;
+            
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('bg-yellow-600', 'text-white');
+                btn.classList.add('bg-slate-700', 'text-slate-300');
+            });
+            document.getElementById(`tab-${range}`).classList.remove('bg-slate-700', 'text-slate-300');
+            document.getElementById(`tab-${range}`).classList.add('bg-yellow-600', 'text-white');
+            
+            const data = allData[range];
+            drawChart(data);
+            updateStats(data);
+            updateTable(data);
+        };
+
+        // 刷新数据
+        const refreshData = () => {
+            document.getElementById('lastUpdate').textContent = '刷新中...';
+            
+            setTimeout(() => {
+                allData.day = generatePriceData(7);
+                allData.week = generatePriceData(30);
+                allData.month = generatePriceData(90);
+                allData.quarter = generatePriceData(180);
+                
+                updateCurrentPrice();
+                switchRange(currentRange);
+            }, 500);
+        };
+
+        // 初始化
+        document.addEventListener('DOMContentLoaded', () => {
+            updateThresholdDisplay();
+            updateCurrentPrice();
+            switchRange('day');
+        });
+    </script>
+</body>
+</html>
